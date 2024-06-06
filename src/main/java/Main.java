@@ -1,29 +1,35 @@
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Main {
   public static void main(String[] args) {
-    System.out.println("Logs from your program will appear here!");
-
-    // Set the base directory for file lookups
-    String baseDir = "/tmp/data/codecrafters.io/http-server-tester/";
-
-    try (ServerSocket serverSocket = new ServerSocket(4221)) {
+    ServerSocket serverSocket = null;
+    Socket clientSocket = null;
+    try {
+      String directoryString = null;
+      if (args.length > 1 && "--directory".equals(args[0])) {
+        directoryString = args[1];
+      }
+      // Connect
+      serverSocket = new ServerSocket(4221);
       serverSocket.setReuseAddress(true);
-
       while (true) {
-        Socket clientSocket = serverSocket.accept(); // Wait for connection from client.
-        System.out.println("Accepted new connection");
-
-        // Handle each connection in a new thread
-        new Thread(new ClientHandler(clientSocket, baseDir)).start();
+        clientSocket = serverSocket.accept();
+        System.out.println("accepted new connection");
+        RequestHandler handler = new RequestHandler(clientSocket.getInputStream(),
+            clientSocket.getOutputStream(), directoryString);
+        handler.start();
       }
     } catch (IOException e) {
       System.out.println("IOException: " + e.getMessage());
@@ -31,97 +37,109 @@ public class Main {
   }
 }
 
-class ClientHandler implements Runnable {
-  private Socket clientSocket;
-  private String baseDir;
+class RequestHandler extends Thread {
+  private InputStream inputStream;
+  private OutputStream outputStream;
+  private String fileDir;
 
-  public ClientHandler(Socket clientSocket, String baseDir) {
-    this.clientSocket = clientSocket;
-    this.baseDir = baseDir;
+  RequestHandler(InputStream inputStream, OutputStream outputStream,
+      String fileDir) {
+    this.inputStream = inputStream;
+    this.outputStream = outputStream;
+    this.fileDir = fileDir == null ? "" : fileDir + File.separator;
   }
 
-  @Override
   public void run() {
     try {
-      InputStream input = clientSocket.getInputStream();
-      BufferedReader reader = new BufferedReader(new InputStreamReader(input));
-      String line = reader.readLine();
-      System.out.println("Request Line: " + line);
-
-      if (line != null) {
-        String[] HttpRequest = line.split(" ");
-        String path = HttpRequest[1];
-        System.out.println("Requested Path: " + path);
-
-        // Read headers
-        String userAgent = "";
-        while (!(line = reader.readLine()).isEmpty()) {
-          if (line.startsWith("User-Agent:")) {
-            userAgent = line.substring("User-Agent:".length()).trim();
-            break;
-          }
+      // Read
+      BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
+      String requestLine = bufferedReader.readLine();
+      Map<String, String> requestHeaders = new HashMap<String, String>();
+      String header = null;
+      while ((header = bufferedReader.readLine()) != null && !header.isEmpty()) {
+        String[] keyVal = header.split(":", 2);
+        if (keyVal.length == 2) {
+          requestHeaders.put(keyVal[0], keyVal[1].trim());
         }
-        System.out.println("User-Agent: " + userAgent);
-
-        OutputStream output = clientSocket.getOutputStream();
-
-        if ("/user-agent".equals(path)) {
-          String responseBody = userAgent;
-          String responseHeaders = "HTTP/1.1 200 OK\r\n" +
-                                   "Content-Type: text/plain\r\n" +
-                                   "Content-Length: " + responseBody.length() + "\r\n" +
-                                   "\r\n";
-          output.write(responseHeaders.getBytes());
-          output.write(responseBody.getBytes());
-        } else if ("/".equals(path) || "/index.html".equals(path)) {
-          String responseBody = "Welcome to the homepage!";
-          String responseHeaders = "HTTP/1.1 200 OK\r\n" +
-                                   "Content-Type: text/plain\r\n" +
-                                   "Content-Length: " + responseBody.length() + "\r\n" +
-                                   "\r\n";
-          output.write(responseHeaders.getBytes());
-          output.write(responseBody.getBytes());
-        } else if (path.startsWith("/echo/")) {
-          String echoStr = path.substring(6); // Extract the string after "/echo/"
-          String responseBody = echoStr;
-          String responseHeaders = "HTTP/1.1 200 OK\r\n" +
-                                   "Content-Type: text/plain\r\n" +
-                                   "Content-Length: " + responseBody.length() + "\r\n" +
-                                   "\r\n";
-          output.write(responseHeaders.getBytes());
-          output.write(responseBody.getBytes());
-        } else if (path.startsWith("/files/")) {
-          String filename = baseDir + path.substring(7); // Extract the filename after "/files/"
-          File file = new File(filename);
-
-          if (file.exists() && !file.isDirectory()) {
-            FileInputStream fileInputStream = new FileInputStream(file);
-            byte[] fileContent = new byte[(int) file.length()];
-            fileInputStream.read(fileContent);
-
-            String responseHeaders = "HTTP/1.1 200 OK\r\n" +
-                                     "Content-Type: application/octet-stream\r\n" +
-                                     "Content-Length: " + fileContent.length + "\r\n" +
-                                     "\r\n";
-            output.write(responseHeaders.getBytes());
-            output.write(fileContent);
-            
-            fileInputStream.close();
-          } else {
-            String responseHeaders = "HTTP/1.1 404 Not Found\r\n\r\n";
-            output.write(responseHeaders.getBytes());
-          }
-        } else {
-          String responseHeaders = "HTTP/1.1 404 Not Found\r\n\r\n";
-          output.write(responseHeaders.getBytes());
-        }
-
-        output.close();
       }
+      // Read body
+      StringBuffer bodyBuffer = new StringBuffer();
+      while (bufferedReader.ready()) {
+        bodyBuffer.append((char) bufferedReader.read());
+      }
+      String body = bodyBuffer.toString();
+      // Process
+      String[] requestLinePieces = requestLine.split(" ", 3);
+      String httpMethod = requestLinePieces[0];
+      String requestTarget = requestLinePieces[1];
+      String httpVersion = requestLinePieces[2];
 
-      // Close the streams and socket
-      reader.close();
-      clientSocket.close();
+      // Write
+      if ("POST".equals(httpMethod)) {
+        if (requestTarget.startsWith("/files/")) {
+          File file = new File(fileDir + requestTarget.substring(7));
+          if (file.createNewFile()) {
+            FileWriter fileWriter = new FileWriter(file);
+            fileWriter.write(body);
+            fileWriter.close();
+          }
+          outputStream.write("HTTP/1.1 201 Created\r\n\r\n".getBytes());
+        } else {
+          outputStream.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
+        }
+        outputStream.flush();
+        outputStream.close();
+        return;
+      }
+      if (requestTarget.equals("/")) {
+        outputStream.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
+      } else if (requestTarget.startsWith("/echo/")) {
+        String echoString = requestTarget.substring(6);
+        String outputString = "HTTP/1.1 200 OK\r\n"
+            + "Content-Type: text/plain\r\n"
+            + "Content-Length: " + echoString.length() +
+            "\r\n"
+            + "\r\n" + echoString;
+        outputStream.write(outputString.getBytes());
+        
+      } else if (requestTarget.equals("/user-agent")) {
+        String outputString = "HTTP/1.1 200 OK\r\n"
+            + "Content-Type: text/plain\r\n"
+            + "Content-Length: " + requestHeaders.get("User-Agent").length() +
+            "\r\n"
+            + "\r\n" + requestHeaders.get("User-Agent");
+        outputStream.write(outputString.getBytes());
+
+      } else if (requestTarget.startsWith("/files/")) {
+        String fileName = requestTarget.substring(7);
+        FileReader fileReader;
+        try {
+          fileReader = new FileReader(fileDir + fileName);
+        } catch (FileNotFoundException e) {
+          outputStream.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
+          outputStream.flush();
+          outputStream.close();
+          return;
+        }
+        BufferedReader bufferedFileReader = new BufferedReader(fileReader);
+        StringBuffer stringBuffer = new StringBuffer();
+        String line;
+        while ((line = bufferedFileReader.readLine()) != null) {
+          stringBuffer.append(line);
+        }
+        bufferedFileReader.close();
+        fileReader.close();
+        String outputString = "HTTP/1.1 200 OK\r\n"
+            + "Content-Type: application/octet-stream\r\n"
+            + "Content-Length: " + stringBuffer.length() +
+            "\r\n"
+            + "\r\n" + stringBuffer.toString();
+        outputStream.write(outputString.getBytes());
+      } else {
+        outputStream.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
+      }
+      outputStream.flush();
+      outputStream.close();
     } catch (IOException e) {
       System.out.println("IOException: " + e.getMessage());
     }
