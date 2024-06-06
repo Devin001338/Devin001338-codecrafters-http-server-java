@@ -12,6 +12,9 @@ public class Main {
   public static void main(String[] args) {
     System.out.println("Logs from your program will appear here!");
 
+    // Set the base directory for file lookups
+    String baseDir = "/tmp/data/codecrafters.io/http-server-tester/";
+
     try (ServerSocket serverSocket = new ServerSocket(4221)) {
       serverSocket.setReuseAddress(true);
 
@@ -20,7 +23,7 @@ public class Main {
         System.out.println("Accepted new connection");
 
         // Handle each connection in a new thread
-        new Thread(new ClientHandler(clientSocket)).start();
+        new Thread(new ClientHandler(clientSocket, baseDir)).start();
       }
     } catch (IOException e) {
       System.out.println("IOException: " + e.getMessage());
@@ -30,9 +33,11 @@ public class Main {
 
 class ClientHandler implements Runnable {
   private Socket clientSocket;
+  private String baseDir;
 
-  public ClientHandler(Socket clientSocket) {
+  public ClientHandler(Socket clientSocket, String baseDir) {
     this.clientSocket = clientSocket;
+    this.baseDir = baseDir;
   }
 
   @Override
@@ -86,7 +91,7 @@ class ClientHandler implements Runnable {
           output.write(responseHeaders.getBytes());
           output.write(responseBody.getBytes());
         } else if (path.startsWith("/files/")) {
-          String filename = path.substring(7); // Extract the filename after "/files/"
+          String filename = baseDir + path.substring(7); // Extract the filename after "/files/"
           File file = new File(filename);
 
           if (file.exists() && !file.isDirectory()) {
