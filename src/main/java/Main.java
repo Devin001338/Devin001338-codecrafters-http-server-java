@@ -59,7 +59,7 @@ class RequestHandler extends Thread {
       while ((header = bufferedReader.readLine()) != null && !header.isEmpty()) {
         String[] keyVal = header.split(":", 2);
         if (keyVal.length == 2) {
-          requestHeaders.put(keyVal[0], keyVal[1].trim());
+          requestHeaders.put(keyVal[0].toLowerCase(), keyVal[1].trim());
         }
       }
       // Read body
@@ -74,18 +74,17 @@ class RequestHandler extends Thread {
       String requestTarget = requestLinePieces[1];
       String httpVersion = requestLinePieces[2];
 
-      //Define if client accept gzin encoding
-      boolean gzipAccept = false;
+      // Determine if client accepts gzip encoding
+      boolean acceptGzip = false;
       if (requestHeaders.containsKey("accept-encoding")) {
         String[] encodings = requestHeaders.get("accept-encoding").split(",");
         for (String encoding : encodings) {
           if (encoding.trim().equalsIgnoreCase("gzip")) {
-            gzipAccept = true;
+            acceptGzip = true;
             break;
           }
         }
       }
-
 
       // Write
       if ("POST".equals(httpMethod)) {
@@ -111,7 +110,7 @@ class RequestHandler extends Thread {
         String outputString = "HTTP/1.1 200 OK\r\n"
             + "Content-Type: text/plain\r\n"
             + "Content-Length: " + echoString.length() + "\r\n";
-        if (gzipAccept) {
+        if (acceptGzip) {
           outputString += "Content-Encoding: gzip\r\n";
         }
         outputString += "\r\n" + echoString;
@@ -119,9 +118,9 @@ class RequestHandler extends Thread {
       } else if (requestTarget.equals("/user-agent")) {
         String outputString = "HTTP/1.1 200 OK\r\n"
             + "Content-Type: text/plain\r\n"
-            + "Content-Length: " + requestHeaders.get("User-Agent").length() +
+            + "Content-Length: " + requestHeaders.get("user-agent").length() +
             "\r\n"
-            + "\r\n" + requestHeaders.get("User-Agent");
+            + "\r\n" + requestHeaders.get("user-agent");
         outputStream.write(outputString.getBytes());
 
       } else if (requestTarget.startsWith("/files/")) {
