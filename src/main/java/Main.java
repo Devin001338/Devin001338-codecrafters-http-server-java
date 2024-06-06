@@ -2,7 +2,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -21,20 +20,18 @@ public class Main {
     serverSocket.setReuseAddress(true);
     clientSocket = serverSocket.accept(); // Wait for connection from client.
     
-    //Extract URL path
-    InputStream input = clientSocket.getInputStream();
-    OutputStream output = clientSocket.getOutputStream();
-    BufferedReader reader = new BufferedReader(new InputStreamReader(input));
-    String line = reader.readLine();
-
-    System.out.println(line);
-    String[] HttpRequest = line.split(" " , 0);
-    output.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
-    if (HttpRequest[1].equals("/")) {
-      output.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
-    } else{
-      output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
-    }
+    clientSocket.getOutputStream().write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
+      InputStream clientSocketInputStream = clientSocket.getInputStream();
+      BufferedReader reader =
+          new BufferedReader(new InputStreamReader(clientSocketInputStream));
+      String[] requestLine = reader.readLine().split(" ");
+      if (requestLine[1].equals("/")) {
+        clientSocket.getOutputStream().write(
+            "HTTP/1.1 200 OK\r\n\r\n".getBytes());
+      } else {
+        clientSocket.getOutputStream().write(
+            "HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
+      }
 
     System.out.println("accegitpted new connection");
     
