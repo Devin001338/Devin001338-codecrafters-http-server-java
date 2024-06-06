@@ -32,9 +32,9 @@ public class Main {
           System.out.println("Requested Path: " + path);
 
           OutputStream output = clientSocket.getOutputStream();
-          
+
           if (path.startsWith("/echo/")) {
-            String echoStr = path.substring(6);
+            String echoStr = path.substring(6); // Extract the string after "/echo/"
             String responseBody = echoStr;
             String responseHeaders = "HTTP/1.1 200 OK\r\n" +
                                      "Content-Type: text/plain\r\n" +
@@ -42,9 +42,17 @@ public class Main {
                                      "\r\n";
             output.write(responseHeaders.getBytes());
             output.write(responseBody.getBytes());
+          } else if ("/".equals(path) || "/index.html".equals(path)) {
+            String responseBody = "Welcome to the homepage!";
+            String responseHeaders = "HTTP/1.1 200 OK\r\n" +
+                                     "Content-Type: text/plain\r\n" +
+                                     "Content-Length: " + responseBody.length() + "\r\n" +
+                                     "\r\n";
+            output.write(responseHeaders.getBytes());
+            output.write(responseBody.getBytes());
           } else {
-            String responseHeader = "HTTP/1.1 404 Not Found\r\n\r\n";
-            output.write(responseHeader.getBytes());
+            String responseHeaders = "HTTP/1.1 404 Not Found\r\n\r\n";
+            output.write(responseHeaders.getBytes());
           }
 
           output.close();
