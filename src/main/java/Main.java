@@ -1,4 +1,6 @@
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -83,6 +85,23 @@ class ClientHandler implements Runnable {
                                    "\r\n";
           output.write(responseHeaders.getBytes());
           output.write(responseBody.getBytes());
+        } else if(path.startsWith("/files/")){
+          String filename = line.substring(7);
+          File file = new File(filename);
+          if (file.exists() && !file.isDirectory()) {
+            FileInputStream fileInputStream = new FileInputStream(file);
+            byte[] fileContent = new byte[(int) file.length()];
+            fileInputStream.read(fileContent);
+
+            String responseHeaders = "HTTP/1.1 200 OK\r\n" +
+                                     "Content-Type: application/octet-stream\r\n" +
+                                     "Content-Length: " + fileContent.length + "\r\n" +
+                                     "\r\n";
+            output.write(responseHeaders.getBytes());
+            output.write(fileContent);
+            fileInputStream.close();
+          }
+
         } else {
           String responseHeaders = "HTTP/1.1 404 Not Found\r\n\r\n";
           output.write(responseHeaders.getBytes());
