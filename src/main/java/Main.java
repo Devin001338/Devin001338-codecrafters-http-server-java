@@ -74,6 +74,19 @@ class RequestHandler extends Thread {
       String requestTarget = requestLinePieces[1];
       String httpVersion = requestLinePieces[2];
 
+      //Define if client accept gzin encoding
+      boolean gzipAccept = false;
+      if (requestHeaders.containsKey("accept-encoding")) {
+        String[] encodings = requestHeaders.get("accept-encoding").split(",");
+        for (String encoding : encodings) {
+          if (encoding.trim().equalsIgnoreCase("gzip")) {
+            gzipAccept = true;
+            break;
+          }
+        }
+      }
+
+
       // Write
       if ("POST".equals(httpMethod)) {
         if (requestTarget.startsWith("/files/")) {
@@ -97,11 +110,12 @@ class RequestHandler extends Thread {
         String echoString = requestTarget.substring(6);
         String outputString = "HTTP/1.1 200 OK\r\n"
             + "Content-Type: text/plain\r\n"
-            + "Content-Length: " + echoString.length() +
-            "\r\n"
-            + "\r\n" + echoString;
+            + "Content-Length: " + echoString.length() + "\r\n";
+        if (gzipAccept) {
+          outputString += "Content-Encoding: gzip\r\n";
+        }
+        outputString += "\r\n" + echoString;
         outputStream.write(outputString.getBytes());
-        
       } else if (requestTarget.equals("/user-agent")) {
         String outputString = "HTTP/1.1 200 OK\r\n"
             + "Content-Type: text/plain\r\n"
