@@ -85,9 +85,10 @@ class ClientHandler implements Runnable {
                                    "\r\n";
           output.write(responseHeaders.getBytes());
           output.write(responseBody.getBytes());
-        } else if(path.startsWith("/files/")){
-          String filename = line.substring(7);
+        } else if (path.startsWith("/files/")) {
+          String filename = path.substring(7); // Extract the filename after "/files/"
           File file = new File(filename);
+
           if (file.exists() && !file.isDirectory()) {
             FileInputStream fileInputStream = new FileInputStream(file);
             byte[] fileContent = new byte[(int) file.length()];
@@ -99,9 +100,12 @@ class ClientHandler implements Runnable {
                                      "\r\n";
             output.write(responseHeaders.getBytes());
             output.write(fileContent);
+            
             fileInputStream.close();
+          } else {
+            String responseHeaders = "HTTP/1.1 404 Not Found\r\n\r\n";
+            output.write(responseHeaders.getBytes());
           }
-
         } else {
           String responseHeaders = "HTTP/1.1 404 Not Found\r\n\r\n";
           output.write(responseHeaders.getBytes());
