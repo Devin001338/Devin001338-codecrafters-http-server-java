@@ -1,4 +1,5 @@
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -11,6 +12,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.zip.GZIPOutputStream;
 
 public class Main {
   public static void main(String[] args) {
@@ -107,14 +109,24 @@ class RequestHandler extends Thread {
         outputStream.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
       } else if (requestTarget.startsWith("/echo/")) {
         String echoString = requestTarget.substring(6);
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        if (acceptGzip) {
+          GZIPOutputStream gzipOutputStream = new GZIPOutputStream(byteArrayOutputStream);
+          gzipOutputStream.write(echoString.getBytes());
+          gzipOutputStream.close();
+        } else {
+          byteArrayOutputStream.write(echoString.getBytes());
+        }
+        byte[] responseBytes = byteArrayOutputStream.toByteArray();
         String outputString = "HTTP/1.1 200 OK\r\n"
             + "Content-Type: text/plain\r\n"
-            + "Content-Length: " + echoString.length() + "\r\n";
+            + "Content-Length: " + responseBytes.length + "\r\n";
         if (acceptGzip) {
           outputString += "Content-Encoding: gzip\r\n";
         }
-        outputString += "\r\n" + echoString;
+        outputString += "\r\n";
         outputStream.write(outputString.getBytes());
+        outputStream.write(responseBytes);
       } else if (requestTarget.equals("/user-agent")) {
         String outputString = "HTTP/1.1 200 OK\r\n"
             + "Content-Type: text/plain\r\n"
@@ -142,12 +154,24 @@ class RequestHandler extends Thread {
         }
         bufferedFileReader.close();
         fileReader.close();
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        if (acceptGzip) {
+          GZIPOutputStream gzipOutputStream = new GZIPOutputStream(byteArrayOutputStream);
+          gzipOutputStream.write(stringBuffer.toString().getBytes());
+          gzipOutputStream.close();
+        } else {
+          byteArrayOutputStream.write(stringBuffer.toString().getBytes());
+        }
+        byte[] responseBytes = byteArrayOutputStream.toByteArray();
         String outputString = "HTTP/1.1 200 OK\r\n"
             + "Content-Type: application/octet-stream\r\n"
-            + "Content-Length: " + stringBuffer.length() +
-            "\r\n"
-            + "\r\n" + stringBuffer.toString();
+            + "Content-Length: " + responseBytes.length + "\r\n";
+        if (acceptGzip) {
+          outputString += "Content-Encoding: gzip\r\n";
+        }
+        outputString += "\r\n";
         outputStream.write(outputString.getBytes());
+        outputStream.write(responseBytes);
       } else {
         outputStream.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
       }
