@@ -31,9 +31,26 @@ public class Main {
           String path = HttpRequest[1];
           System.out.println("Requested Path: " + path);
 
+          String userAgent = "";
+          while (!(line = reader.readLine()).isEmpty()) {
+            if (line.startsWith("User-Agent:")) {
+              userAgent = line.substring("User-Agent:".length()).trim();
+              break;
+            }
+          }
+          System.out.println("User-Agent:"+ userAgent);
+
           OutputStream output = clientSocket.getOutputStream();
 
-          if (path.startsWith("/echo/")) {
+          if ("/user-agent".equals(path)) {
+            String responseBody = userAgent;
+            String responseHeaders = "HTTP/1.1 200 OK\r\n" +
+                                     "Content-Type: text/plain\r\n" +
+                                     "Content-Length: " + responseBody.length() + "\r\n" +
+                                     "\r\n";
+            output.write(responseHeaders.getBytes());
+            output.write(responseBody.getBytes());
+          } else if (path.startsWith("/echo/")) {
             String echoStr = path.substring(6); // Extract the string after "/echo/"
             String responseBody = echoStr;
             String responseHeaders = "HTTP/1.1 200 OK\r\n" +
