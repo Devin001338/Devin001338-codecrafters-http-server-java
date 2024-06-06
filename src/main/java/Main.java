@@ -33,10 +33,18 @@ public class Main {
 
           OutputStream output = clientSocket.getOutputStream();
           
-          if ("/".equals(path) || "/index.html".equals(path)) {
-            output.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
+          if (path.startsWith("/echo/")) {
+            String echoStr = path.substring(6);
+            String responseBody = echoStr;
+            String responseHeaders = "HTTP/1.1 200 OK\r\n" +
+                                     "Content-Type: text/plain\r\n" +
+                                     "Content-Length: " + responseBody.length() + "\r\n" +
+                                     "\r\n";
+            output.write(responseHeaders.getBytes());
+            output.write(responseBody.getBytes());
           } else {
-            output.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
+            String responseHeader = "HTTP/1.1 404 Not Found\r\n\r\n";
+            output.write(responseHeader.getBytes());
           }
 
           output.close();
